@@ -54,7 +54,7 @@ jobs:
           # Start container in background
           docker run --rm -d --name querygenie-test -p 8001:8000 querygenie-test
           sleep 25
-          
+
           # Check if container is running
           if docker ps | grep -q querygenie-test; then
             echo "✅ Docker container started successfully"

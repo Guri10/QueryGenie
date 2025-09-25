@@ -14,10 +14,10 @@ import os
 import json
 from datetime import datetime
 
-from faiss_manager import FAISSManager
-from rag_pipeline import RAGPipeline
-from arxiv_downloader import ArxivDownloader
-from preprocessing import DocumentProcessor
+from .faiss_manager import FAISSManager
+from .rag_pipeline import RAGPipeline
+from .arxiv_downloader import ArxivDownloader
+from .preprocessing import DocumentProcessor
 
 
 # Pydantic models for API

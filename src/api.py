@@ -95,6 +95,7 @@ def initialize_pipeline():
         
         if not faiss_manager.is_ready():
             print("FAISS index not found. Please run preprocessing first.")
+            print("API will start in limited mode - some endpoints may not work.")
             return False
         
         # Initialize RAG pipeline (retrieval-only mode)
@@ -105,6 +106,7 @@ def initialize_pipeline():
         
     except Exception as e:
         print(f"Error initializing pipeline: {e}")
+        print("API will start in limited mode - some endpoints may not work.")
         return False
 
 
@@ -128,7 +130,17 @@ async def api_info():
         "message": "QueryGenie RAG Chatbot API",
         "version": "1.0.0",
         "status": "running",
-        "docs": "/docs"
+        "docs": "/docs",
+        "pipeline_status": "ready" if rag_pipeline is not None else "not_initialized"
+    }
+
+@app.get("/test")
+async def test_endpoint():
+    """Simple test endpoint that doesn't require RAG pipeline"""
+    return {
+        "message": "QueryGenie API is running",
+        "timestamp": datetime.now().isoformat(),
+        "status": "ok"
     }
 
 

@@ -52,37 +52,57 @@ jobs:
       - name: Test Docker container
         run: |
           # Start container in background
+          echo "Starting Docker container..."
           docker run --rm -d --name querygenie-test -p 8001:8000 querygenie-test
-          sleep 25
 
-          # Check if container is running
+          # Wait a moment for container to start
+          sleep 5
+
+          # Check if container is still running
           if docker ps | grep -q querygenie-test; then
             echo "✅ Docker container started successfully"
             
-            # Wait a bit more for the app to fully start
-            sleep 15
+            # Wait for app to start
+            sleep 20
             
-            # Test basic connectivity (even if health check fails due to missing data)
-            if curl -s http://localhost:8001/ > /dev/null 2>&1; then
-              echo "✅ Container is responding to requests"
+            # Check if container is still running
+            if docker ps | grep -q querygenie-test; then
+              echo "✅ Container is still running"
+              
+              # Test basic connectivity
+              if curl -s http://localhost:8001/ > /dev/null 2>&1; then
+                echo "✅ Container is responding to requests"
+              else
+                echo "⚠️ Container not responding (checking logs)"
+                echo "Container logs:"
+                docker logs querygenie-test --tail 30
+              fi
+              
+              # Test simple test endpoint
+              if curl -s http://localhost:8001/test > /dev/null 2>&1; then
+                echo "✅ Test endpoint is accessible"
+              else
+                echo "⚠️ Test endpoint not accessible"
+              fi
+              
+              # Test API info endpoint
+              if curl -s http://localhost:8001/api > /dev/null 2>&1; then
+                echo "✅ API endpoint is accessible"
+              else
+                echo "⚠️ API endpoint not accessible"
+              fi
+              
+              # Stop container
+              docker stop querygenie-test
+              echo "✅ Docker container test completed"
             else
-              echo "⚠️ Container not responding (checking logs)"
+              echo "❌ Container stopped unexpectedly"
               echo "Container logs:"
-              docker logs querygenie-test --tail 30
+              docker logs querygenie-test
+              exit 1
             fi
-            
-            # Test API info endpoint (should work even without data)
-            if curl -s http://localhost:8001/api > /dev/null 2>&1; then
-              echo "✅ API endpoint is accessible"
-            else
-              echo "⚠️ API endpoint not accessible"
-            fi
-            
-            # Stop container
-            docker stop querygenie-test
-            echo "✅ Docker container test completed"
           else
-            echo "❌ Docker container failed to start"
+            echo "❌ Docker container failed to start or crashed immediately"
             echo "Container logs:"
             docker logs querygenie-test
             exit 1

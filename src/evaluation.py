@@ -11,8 +11,8 @@ from dataclasses import dataclass
 import statistics
 from pathlib import Path
 
-from .faiss_manager import FAISSManager
-from .rag_pipeline import RAGPipeline
+from faiss_manager import FAISSManager
+from rag_pipeline import RAGPipeline
 
 
 @dataclass

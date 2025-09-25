@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QueryGenie RAG Chatbot</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 20px 20px 0 0;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 2rem;
+            overflow: hidden;
+        }
+
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            margin-bottom: 1rem;
+            border: 1px solid #e1e5e9;
+            border-radius: 10px;
+            padding: 1rem;
+            background: #f8f9fa;
+        }
+
+        .message {
+            margin-bottom: 1rem;
+            padding: 1rem;
+            border-radius: 10px;
+            max-width: 80%;
+        }
+
+        .user-message {
+            background: #667eea;
+            color: white;
+            margin-left: auto;
+        }
+
+        .bot-message {
+            background: white;
+            border: 1px solid #e1e5e9;
+        }
+
+        .sources {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e1e5e9;
+        }
+
+        .source {
+            background: #f8f9fa;
+            padding: 0.5rem;
+            margin: 0.5rem 0;
+            border-radius: 5px;
+            font-size: 0.9rem;
+        }
+
+        .input-container {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .input-field {
+            flex: 1;
+            padding: 1rem;
+            border: 1px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 1rem;
+            outline: none;
+        }
+
+        .input-field:focus {
+            border-color: #667eea;
+        }
+
+        .send-button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background 0.3s;
+        }
+
+        .send-button:hover {
+            background: #5a6fd8;
+        }
+
+        .send-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            color: #667eea;
+            font-style: italic;
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 1rem;
+            border-radius: 10px;
+            margin: 1rem 0;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                width: 95%;
+                margin: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .chat-container {
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 QueryGenie</h1>
+            <p>Free, Local RAG Chatbot powered by arXiv papers</p>
+        </div>
+        
+        <div class="chat-container">
+            <div class="messages" id="messages">
+                <div class="message bot-message">
+                    <p>👋 Hello! I'm QueryGenie, your free RAG chatbot. I can answer questions based on recent research papers from arXiv. Ask me anything about AI, machine learning, computer vision, NLP, and more!</p>
+                </div>
+            </div>
+            
+            <div class="loading" id="loading">
+                🔍 Searching through research papers...
+            </div>
+            
+            <div class="input-container">
+                <input type="text" id="questionInput" class="input-field" placeholder="Ask me about AI research..." />
+                <button id="sendButton" class="send-button">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        
+        const messagesContainer = document.getElementById('messages');
+        const questionInput = document.getElementById('questionInput');
+        const sendButton = document.getElementById('sendButton');
+        const loadingDiv = document.getElementById('loading');
+        
+        function addMessage(content, isUser = false, sources = null, stats = null) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
+            
+            let html = `<p>${content}</p>`;
+            
+            if (sources && sources.length > 0) {
+                html += '<div class="sources"><strong>Sources:</strong>';
+                sources.forEach((source, index) => {
+                    html += `
+                        <div class="source">
+                            <strong>[${index + 1}]</strong> ${source.paper_title}
+                            <br><small>Authors: ${source.authors.join(', ')}</small>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            }
+            
+            if (stats) {
+                html += `
+                    <div class="stats">
+                        <span>⏱️ ${(stats.total_time * 1000).toFixed(0)}ms</span>
+                        <span>🔍 ${(stats.retrieval_time * 1000).toFixed(0)}ms</span>
+                        <span>🤖 ${(stats.generation_time * 1000).toFixed(0)}ms</span>
+                    </div>
+                `;
+            }
+            
+            messageDiv.innerHTML = html;
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+        
+        function showLoading() {
+            loadingDiv.style.display = 'block';
+            sendButton.disabled = true;
+        }
+        
+        function hideLoading() {
+            loadingDiv.style.display = 'none';
+            sendButton.disabled = false;
+        }
+        
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error';
+            errorDiv.textContent = message;
+            messagesContainer.appendChild(errorDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+        
+        async function sendQuestion() {
+            const question = questionInput.value.trim();
+            if (!question) return;
+            
+            // Add user message
+            addMessage(question, true);
+            questionInput.value = '';
+            
+            showLoading();
+            
+            try {
+                const response = await fetch(`${API_BASE}/ask`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        question: question,
+                        k: 5,
+                        max_context_length: 1000,
+                        max_answer_length: 200
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                // Add bot response
+                addMessage(data.answer, false, data.sources, {
+                    total_time: data.total_time,
+                    retrieval_time: data.retrieval_time,
+                    generation_time: data.generation_time
+                });
+                
+            } catch (error) {
+                console.error('Error:', error);
+                showError(`Sorry, I encountered an error: ${error.message}. Make sure the API server is running on ${API_BASE}`);
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        // Event listeners
+        sendButton.addEventListener('click', sendQuestion);
+        questionInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendQuestion();
+            }
+        });
+        
+        // Check API health on load
+        async function checkHealth() {
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                
+                if (data.pipeline_ready) {
+                    addMessage('✅ Connected to QueryGenie API. Ready to answer your questions!', false);
+                } else {
+                    addMessage('⚠️ API connected but pipeline not ready. Some features may not work.', false);
+                }
+            } catch (error) {
+                showError(`❌ Cannot connect to QueryGenie API at ${API_BASE}. Please make sure the server is running.`);
+            }
+        }
+        
+        // Check health on page load
+        checkHealth();
+    </script>
+</body>
+</html>

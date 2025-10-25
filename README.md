@@ -9,6 +9,7 @@ A **completely free, local-only** Retrieval-Augmented Generation (RAG) chatbot t
 - **arXiv Integration**: Automatically downloads and indexes recent research papers
 - **Fast Retrieval**: FAISS-based similarity search for efficient document retrieval
 - **Smart Retrieval**: Intelligent document retrieval with similarity scoring
+- **Optional LLM Generation**: AI-powered answer synthesis with local models (TinyLlama, Phi-3, Mistral)
 - **REST API**: FastAPI-based service with comprehensive endpoints
 - **Docker Support**: Easy deployment with Docker and docker-compose
 - **Auto-Refresh**: Nightly cron job to update the knowledge base
@@ -170,8 +171,42 @@ curl http://localhost:8000/metrics
 
 The system uses these free, open-source models:
 
-- **Embeddings**: `sentence-transformers/all-MiniLM-L6-v2` (384 dimensions, ~90MB)
+- **Embeddings**: `sentence-transformers/all-MiniLLM-L6-v2` (384 dimensions, ~90MB)
 - **Retrieval**: FAISS-based similarity search with sentence-transformers
+- **Generation** (Optional): Local LLM via llama.cpp (TinyLlama, Phi-3, or Mistral)
+
+### Running Modes
+
+#### Retrieval-Only Mode (Default)
+
+Fast and lightweight - returns formatted context from retrieved papers.
+
+```bash
+python src/api.py
+```
+
+#### LLM Generation Mode (Optional)
+
+AI-powered answer synthesis using local models.
+
+```bash
+# Install LLM dependencies first
+pip install llama-cpp-python huggingface-hub
+
+# Enable LLM generation
+USE_LLM=true python src/api.py
+
+# Use specific model
+USE_LLM=true LLM_MODEL="TinyLlama/TinyLlama-1.1B-Chat-v1.0" python src/api.py
+```
+
+**Supported Models:**
+
+- `TinyLlama/TinyLlama-1.1B-Chat-v1.0` (Fastest, ~600MB)
+- `microsoft/phi-2` (Better quality, ~2.3GB)
+- `mistralai/Mistral-7B-Instruct-v0.2` (Best quality, ~4GB)
+
+📖 **See [SETUP_LLM.md](SETUP_LLM.md) for detailed LLM setup instructions.**
 
 ### Customization
 
@@ -180,7 +215,7 @@ You can modify the models in the source code:
 ```python
 # In src/preprocessing.py
 processor = DocumentProcessor(
-    embedding_model="sentence-transformers/all-MiniLM-L6-v2",  # Change this
+    embedding_model="sentence-transformers/all-MiniLLM-L6-v2",  # Change this
     chunk_size=512,
     chunk_overlap=50
 )
@@ -188,7 +223,8 @@ processor = DocumentProcessor(
 # In src/rag_pipeline.py
 rag_pipeline = RAGPipeline(
     faiss_manager,
-    generator_model="distilgpt2"  # Change this
+    use_llm=True,  # Enable LLM generation
+    model_name="TinyLlama/TinyLlama-1.1B-Chat-v1.0"  # Change this
 )
 ```
 

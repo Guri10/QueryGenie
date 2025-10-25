@@ -7,6 +7,12 @@ from typing import List, Dict, Any, Optional
 import time
 from dataclasses import dataclass
 
+try:
+    from llm_generator import LLMGenerator, GenerationConfig
+    LLM_AVAILABLE = True
+except ImportError:
+    LLM_AVAILABLE = False
+
 
 @dataclass
 class RAGResponse:
@@ -24,17 +30,51 @@ class RAGResponse:
 class RAGPipeline:
     """Complete RAG pipeline with retrieval and generation"""
     
-    def __init__(self, faiss_manager):
+    def __init__(
+        self, 
+        faiss_manager, 
+        use_llm: bool = False,
+        model_name: str = "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+        model_path: Optional[str] = None
+    ):
         """
-        Initialize RAG pipeline (retrieval-only mode)
+        Initialize RAG pipeline
         
         Args:
             faiss_manager: FAISSManager instance
+            use_llm: Whether to use LLM for text generation
+            model_name: Name of the LLM model to use
+            model_path: Path to local GGUF model file
         """
         self.faiss_manager = faiss_manager
-        print("RAG pipeline running in retrieval-only mode")
+        self.use_llm = use_llm
+        self.generator = None
         
-    def format_context(self, sources: List[Dict[str, Any]], max_context_length: int = 1000) -> str:
+        if use_llm:
+            if not LLM_AVAILABLE:
+                print("⚠️ Warning: LLM dependencies not available. Falling back to retrieval-only mode.")
+                print("   Install with: pip install llama-cpp-python huggingface-hub")
+                self.use_llm = False
+            else:
+                try:
+                    print(f"Initializing LLM generator with {model_name}...")
+                    self.generator = LLMGenerator(
+                        model_path=model_path,
+                        model_name=model_name,
+                        n_threads=4,
+                        verbose=False
+                    )
+                    print("✅ RAG pipeline running with LLM generation")
+                except Exception as e:
+                    print(f"⚠️ Warning: Failed to load LLM: {e}")
+                    print("   Falling back to retrieval-only mode")
+                    self.use_llm = False
+                    self.generator = None
+        
+        if not self.use_llm:
+            print("RAG pipeline running in retrieval-only mode")
+        
+    def format_context(self, sources: List[Dict[str, Any]], max_context_length: int = 5000) -> str:
         """
         Format retrieved sources into context
         
@@ -89,7 +129,7 @@ class RAGPipeline:
     def query(self, 
               question: str, 
               k: int = 5,
-              max_context_length: int = 1000,
+              max_context_length: int = 5000,
               max_answer_length: int = 200) -> RAGResponse:
         """
         Process a query through the RAG pipeline
@@ -107,36 +147,49 @@ class RAGPipeline:
         
         # Step 1: Retrieve relevant sources
         retrieval_start = time.time()
-        sources = self.faiss_manager.search(question, k=k)
+        sources = self.faiss_manager.search(question, k=k, return_scores=True)
         retrieval_time = time.time() - retrieval_start
         
         if not sources:
+            model_name = self.generator.model_name if self.generator else "retrieval-only"
             return RAGResponse(
                 answer="I couldn't find any relevant information to answer your question.",
                 sources=[],
                 retrieval_time=retrieval_time,
                 generation_time=0.0,
                 total_time=time.time() - start_time,
-                model_used=self.generator.model_name
+                model_used=model_name
             )
         
         # Step 2: Format context
         context = self.format_context(sources, max_context_length)
         
-        # Step 3: Create prompt
-        prompt = f"""Based on the following research papers, please answer the question: {question}
-
-Context:
-{context}
-
-Answer:"""
-        
-        # Step 4: Generate answer (retrieval-only mode)
+        # Step 3: Generate answer
         generation_start = time.time()
-        answer = f"Based on the research papers, here's what I found:\n\n{context[:max_answer_length]}"
-        generation_time = time.time() - generation_start
         
-        # Step 5: Format citations
+        if self.use_llm and self.generator:
+            # LLM-powered generation
+            try:
+                result = self.generator.generate_rag_answer(
+                    question=question,
+                    context=context,
+                    max_answer_length=max_answer_length
+                )
+                answer = result['text']
+                generation_time = result['generation_time']
+                model_name = result['model']
+            except Exception as e:
+                print(f"⚠️ LLM generation failed: {e}. Falling back to retrieval-only.")
+                answer = f"Based on the research papers, here's what I found:\n\n{context[:max_answer_length]}"
+                generation_time = time.time() - generation_start
+                model_name = "retrieval-only (fallback)"
+        else:
+            # Retrieval-only mode
+            answer = f"Based on the research papers, here's what I found:\n\n{context[:max_answer_length]}"
+            generation_time = time.time() - generation_start
+            model_name = "retrieval-only"
+        
+        # Step 4: Format citations
         citations = self.format_citations(sources)
         
         return RAGResponse(
@@ -145,17 +198,22 @@ Answer:"""
             retrieval_time=retrieval_time,
             generation_time=generation_time,
             total_time=time.time() - start_time,
-            model_used="retrieval-only"
+            model_used=model_name
         )
     
     def get_stats(self) -> Dict[str, Any]:
         """Get pipeline statistics"""
         faiss_stats = self.faiss_manager.get_stats()
         
+        generator_info = {
+            "enabled": self.use_llm,
+            "model": self.generator.model_name if self.generator else None,
+            "ready": self.generator.is_ready() if self.generator else False
+        }
+        
         return {
             "faiss_stats": faiss_stats,
-            "generator_model": None,
-            "generator_device": None,
+            "generator_info": generator_info,
             "pipeline_ready": self.faiss_manager.is_ready()
         }
 

@@ -178,7 +178,8 @@ class DocumentProcessor:
     def build_faiss_index(self, 
                          embeddings: np.ndarray, 
                          chunks: List[DocumentChunk],
-                         index_path: str = "data/faiss_index") -> str:
+                         index_path: str = "data/faiss_index",
+                         index_type: str = "auto") -> str:
         """
         Build FAISS index from embeddings
         
@@ -186,15 +187,33 @@ class DocumentProcessor:
             embeddings: Embedding vectors
             chunks: Document chunks
             index_path: Path to save the index
+            index_type: Type of index ('auto', 'flat', 'ivf', 'hnsw')
             
         Returns:
             Path to saved index
         """
         print("Building FAISS index...")
         
-        # Create FAISS index
+        # Import optimizer
+        try:
+            from faiss_optimizer import FAISSOptimizer
+            use_optimizer = True
+        except ImportError:
+            print("Warning: faiss_optimizer not available, using flat index")
+            use_optimizer = False
+        
         dimension = embeddings.shape[1]
-        index = faiss.IndexFlatIP(dimension)  # Inner product for cosine similarity
+        
+        # Create FAISS index
+        if use_optimizer and index_type != "flat":
+            print(f"Creating optimized {index_type} index...")
+            index = FAISSOptimizer.create_optimized_index(
+                embeddings,
+                index_type=index_type
+            )
+        else:
+            print("Creating flat index (exact search)...")
+            index = faiss.IndexFlatIP(dimension)  # Inner product for cosine similarity
         
         # Normalize embeddings for cosine similarity
         faiss.normalize_L2(embeddings)
@@ -230,13 +249,14 @@ class DocumentProcessor:
         
         return index_path
     
-    def process_and_index(self, papers_file: str, index_path: str = "data/faiss_index") -> str:
+    def process_and_index(self, papers_file: str, index_path: str = "data/faiss_index", index_type: str = "auto") -> str:
         """
         Complete pipeline: process papers and create FAISS index
         
         Args:
             papers_file: Path to papers JSON file
             index_path: Path to save the index
+            index_type: Type of FAISS index ('auto', 'flat', 'ivf', 'hnsw')
             
         Returns:
             Path to saved index
@@ -250,7 +270,7 @@ class DocumentProcessor:
         embeddings, chunks = self.create_embeddings(chunks)
         
         # Build FAISS index
-        index_path = self.build_faiss_index(embeddings, chunks, index_path)
+        index_path = self.build_faiss_index(embeddings, chunks, index_path, index_type)
         
         print("Pipeline completed successfully!")
         return index_path

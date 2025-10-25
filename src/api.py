@@ -24,7 +24,7 @@ from preprocessing import DocumentProcessor
 class QueryRequest(BaseModel):
     question: str = Field(..., description="The question to ask the RAG system")
     k: int = Field(5, ge=1, le=20, description="Number of sources to retrieve")
-    max_context_length: int = Field(1000, ge=100, le=5000, description="Maximum context length")
+    max_context_length: int = Field(5000, ge=100, le=10000, description="Maximum context length")
     max_answer_length: int = Field(200, ge=50, le=500, description="Maximum answer length")
 
 
@@ -83,8 +83,14 @@ query_metrics = {
 }
 
 
-def initialize_pipeline():
-    """Initialize the RAG pipeline"""
+def initialize_pipeline(use_llm: bool = False, model_name: str = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"):
+    """
+    Initialize the RAG pipeline
+    
+    Args:
+        use_llm: Whether to enable LLM generation
+        model_name: Name of the LLM model to use
+    """
     global rag_pipeline
     
     try:
@@ -98,8 +104,12 @@ def initialize_pipeline():
             print("API will start in limited mode - some endpoints may not work.")
             return False
         
-        # Initialize RAG pipeline (retrieval-only mode)
-        rag_pipeline = RAGPipeline(faiss_manager)
+        # Initialize RAG pipeline with optional LLM
+        rag_pipeline = RAGPipeline(
+            faiss_manager,
+            use_llm=use_llm,
+            model_name=model_name
+        )
         
         print("RAG Pipeline initialized successfully!")
         return True
@@ -113,7 +123,16 @@ def initialize_pipeline():
 @app.on_event("startup")
 async def startup_event():
     """Initialize the RAG pipeline on startup"""
-    success = initialize_pipeline()
+    # Check environment variable for LLM usage
+    use_llm = os.getenv("USE_LLM", "false").lower() == "true"
+    model_name = os.getenv("LLM_MODEL", "TinyLlama/TinyLlama-1.1B-Chat-v1.0")
+    
+    if use_llm:
+        print(f"🤖 LLM generation enabled with model: {model_name}")
+    else:
+        print("📚 Running in retrieval-only mode (set USE_LLM=true to enable LLM generation)")
+    
+    success = initialize_pipeline(use_llm=use_llm, model_name=model_name)
     if not success:
         print("Warning: RAG pipeline not initialized. Some endpoints may not work.")
 
@@ -315,8 +334,18 @@ async def get_stats():
 if __name__ == "__main__":
     import uvicorn
     
+    # Check environment variable for LLM usage
+    use_llm = os.getenv("USE_LLM", "false").lower() == "true"
+    model_name = os.getenv("LLM_MODEL", "TinyLlama/TinyLlama-1.1B-Chat-v1.0")
+    
+    if use_llm:
+        print(f"🤖 LLM generation enabled with model: {model_name}")
+    else:
+        print("📚 Running in retrieval-only mode")
+        print("   To enable LLM generation: USE_LLM=true python src/api.py")
+    
     # Initialize pipeline before starting server
-    initialize_pipeline()
+    initialize_pipeline(use_llm=use_llm, model_name=model_name)
     
     # Start server
     uvicorn.run(

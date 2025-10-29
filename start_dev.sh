@@ -5,6 +5,9 @@ echo "🚀 Starting QueryGenie in Development Mode..."
 echo "Starting backend..."
 cd backend
 export PYTHONPATH="../src:$PYTHONPATH"
+export USE_LLM=true
+export LLM_MODEL="TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+# export LLM_MODEL="microsoft/phi-2"
 python main.py &
 BACKEND_PID=$!
 

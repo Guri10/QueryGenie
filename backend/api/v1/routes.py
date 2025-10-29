@@ -102,11 +102,26 @@ async def get_metrics():
     
     try:
         stats = faiss_manager.get_stats()
+        
+        # Check if get_stats returned an error dict
+        if isinstance(stats, dict) and "error" in stats:
+            raise HTTPException(status_code=503, detail=stats.get("error", "Index not ready"))
+        
+        # Wrap stats to match frontend expectations
         return StatsResponse(
             status="healthy",
-            pipeline_stats=stats,
+            pipeline_stats={
+                "faiss_stats": {
+                    "total_papers": stats.get("total_papers", 0),
+                    "faiss_index_count": stats.get("index_vectors", 0),
+                    "metadata_chunk_count": stats.get("total_chunks", 0)
+                }
+            },
             timestamp=time.strftime("%Y-%m-%dT%H:%M:%S")
         )
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error getting metrics: {str(e)}")
 

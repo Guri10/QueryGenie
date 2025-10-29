@@ -4,9 +4,10 @@ import { Source } from '../types'
 
 interface SourcesListProps {
   sources: Source[]
+  messageId?: string
 }
 
-export const SourcesList: React.FC<SourcesListProps> = ({ sources }) => {
+export const SourcesList: React.FC<SourcesListProps> = ({ sources, messageId = 'default' }) => {
   const [isExpanded, setIsExpanded] = useState(false)
   const [expandedSource, setExpandedSource] = useState<number | null>(null)
 
@@ -28,7 +29,7 @@ export const SourcesList: React.FC<SourcesListProps> = ({ sources }) => {
       {isExpanded && (
         <div className="mt-3 space-y-3">
           {sources.map((source, index) => (
-            <div key={source.paper_id} className="bg-gray-50 rounded-lg p-3">
+            <div key={`${messageId}-${source.paper_id}-${index}`} className="bg-gray-50 rounded-lg p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">

@@ -13,6 +13,7 @@ import faiss
 from tqdm import tqdm
 import re
 from dataclasses import dataclass
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 
 @dataclass
@@ -31,57 +32,60 @@ class DocumentChunk:
 class DocumentProcessor:
     def __init__(self, 
                  embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
-                 chunk_size: int = 512,
-                 chunk_overlap: int = 50):
+                 chunk_size: int = 1000,
+                 chunk_overlap: int = 200):
         """
         Initialize document processor
         
         Args:
             embedding_model: Hugging Face model for embeddings
-            chunk_size: Maximum tokens per chunk
-            chunk_overlap: Overlap between chunks
+            chunk_size: Maximum characters per chunk (changed from words to characters)
+            chunk_overlap: Overlap between chunks in characters
         """
         self.embedding_model_name = embedding_model
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
         
+        # Initialize RecursiveCharacterTextSplitter
+        self.text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            length_function=len,
+            separators=["\n\n", "\n", ". ", " ", ""],
+            is_separator_regex=False,
+        )
+        
         print(f"Loading embedding model: {embedding_model}")
         self.embedder = SentenceTransformer(embedding_model)
         print(f"Model loaded successfully!")
+        print(f"Using RecursiveCharacterTextSplitter: chunk_size={chunk_size}, overlap={chunk_overlap}")
         
     def chunk_text(self, text: str, chunk_size: int = None, overlap: int = None) -> List[str]:
         """
-        Split text into overlapping chunks
+        Split text into overlapping chunks using RecursiveCharacterTextSplitter
         
         Args:
             text: Input text to chunk
-            chunk_size: Size of each chunk (defaults to self.chunk_size)
-            overlap: Overlap between chunks (defaults to self.chunk_overlap)
+            chunk_size: Size of each chunk in characters (defaults to self.chunk_size)
+            overlap: Overlap between chunks in characters (defaults to self.chunk_overlap)
             
         Returns:
             List of text chunks
         """
-        if chunk_size is None:
-            chunk_size = self.chunk_size
-        if overlap is None:
-            overlap = self.chunk_overlap
-            
-        # Simple word-based chunking (can be improved with tokenization)
-        words = text.split()
-        chunks = []
+        # Use custom parameters if provided
+        if chunk_size is not None or overlap is not None:
+            # Create a temporary text splitter with custom parameters
+            custom_splitter = RecursiveCharacterTextSplitter(
+                chunk_size=chunk_size or self.chunk_size,
+                chunk_overlap=overlap or self.chunk_overlap,
+                length_function=len,
+                separators=["\n\n", "\n", ". ", " ", ""],
+                is_separator_regex=False,
+            )
+            return custom_splitter.split_text(text)
         
-        start = 0
-        while start < len(words):
-            end = min(start + chunk_size, len(words))
-            chunk = " ".join(words[start:end])
-            chunks.append(chunk)
-            
-            if end == len(words):
-                break
-                
-            start = end - overlap
-            
-        return chunks
+        # Use the default text splitter
+        return self.text_splitter.split_text(text)
     
     def process_papers(self, papers_file: str) -> List[DocumentChunk]:
         """

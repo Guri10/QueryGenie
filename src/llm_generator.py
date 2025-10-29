@@ -246,29 +246,28 @@ class LLMGenerator:
             ]
         )
         
-        # Generate answer
+        # Generate answer - no validation, always return LLM output
         result = self.generate(prompt, config)
-        
-        # Post-process to ensure quality
-        generated_text = result['text']
-        
-        # Strong validation to ensure answer uses context
-        validation_result = self._validate_answer_grounding(generated_text, context, question)
-        
-        if not validation_result['is_grounded']:
-            # Debug: Print validation details
-            print(f"⚠️ LLM grounding validation failed:")
-            print(f"   Citations: {validation_result['has_citations']}")
-            print(f"   References papers: {validation_result.get('references_papers', False)}")
-            print(f"   Context terms: {validation_result['context_term_ratio']:.2f}")
-            print(f"   Unrelated content: {validation_result['has_unrelated']}")
-            print(f"   Question relevance: {validation_result['question_relevance']:.2f}")
-            print(f"   Answer preview: {generated_text[:100]}...")
-            
-            # Answer doesn't use context properly, return retrieval-only response
-            result['text'] = f"Based on the research papers, here's what I found:\n\n{context[:max_answer_length]}"
-            result['model'] = "retrieval-only (grounding failed)"
-        
+
+        # Post-process: strip any inline reference sections since UI renders sources separately
+        try:
+            text = result.get("text", "")
+            # Remove common reference headers the model might invent
+            for header in ["\nREFERENCES:", "\nReferences:", "\nReference:"]:
+                idx = text.find(header)
+                if idx != -1:
+                    text = text[:idx].rstrip()
+            # Also trim trailing numbered citation lists if present
+            if "[1]" in text and text.strip().endswith("]"):
+                # Heuristic: cut off last paragraph if it looks like a citation list
+                parts = text.split("\n\n")
+                if len(parts) > 1 and any(part.strip().startswith("[1]") for part in parts[-1:]):
+                    text = "\n\n".join(parts[:-1]).rstrip()
+            result["text"] = text
+        except Exception:
+            # Best-effort cleanup; ignore failures
+            pass
+
         return result
     
     def _create_rag_prompt(self, question: str, context: str) -> str:
@@ -285,19 +284,19 @@ class LLMGenerator:
         prompt = f"""You are a research assistant that answers questions by synthesizing information from the provided research paper abstracts.
 
 INSTRUCTIONS:
-- Base your answer on the research papers provided below
-- Synthesize the information into a coherent, informative response
-- Reference the papers using citation numbers [1], [2], etc. when mentioning specific findings
-- If the papers don't contain relevant information, say "The provided papers don't contain information about this topic"
-- Focus on the technical/academic content from the papers
-- Write in a clear, informative style that helps the user understand the topic
+- Base your answer on the research papers provided below.
+- Synthesize the information into a coherent, informative response.
+- Do NOT include references, citations, or a REFERENCES section in your answer. The UI will show sources separately.
+- If the papers don't contain relevant information, say "The provided papers don't contain information about this topic".
+- Focus on the technical/academic content from the papers.
+- Write in a clear, informative style that helps the user understand the topic.
 
 RESEARCH PAPERS:
 {context}
 
 QUESTION: {question}
 
-ANSWER (synthesizing information from the research papers above): """
+ANSWER (synthesizing information from the research papers above; no citations or references in the text): """
         
         return prompt
     

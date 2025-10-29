@@ -49,7 +49,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
           
           {message.sources && message.sources.length > 0 && (
             <div className="mt-4">
-              <SourcesList sources={message.sources} />
+              <SourcesList sources={message.sources} messageId={message.id} />
             </div>
           )}
         </div>

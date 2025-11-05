@@ -75,7 +75,12 @@ A **completely free, local-only** Retrieval-Augmented Generation (RAG) chatbot t
    ```
 
 5. **Start the API server**
+
    ```bash
+   # Using the new backend structure
+   python backend/main.py
+
+   # Or using the legacy API (alternative)
    python src/api.py
    ```
 
@@ -84,14 +89,14 @@ A **completely free, local-only** Retrieval-Augmented Generation (RAG) chatbot t
 1. **Build and run with Docker Compose**
 
    ```bash
-   docker-compose up -d
+   docker-compose -f docker-compose.prod.yml up -d
    ```
 
 2. **Initialize the system** (first time only)
    ```bash
    # Download papers and create index
-   docker-compose exec querygenie python src/arxiv_downloader.py
-   docker-compose exec querygenie python src/preprocessing.py
+   docker-compose -f docker-compose.prod.yml exec backend python src/arxiv_downloader.py
+   docker-compose -f docker-compose.prod.yml exec backend python src/preprocessing.py
    ```
 
 ## 🚀 Quick Start
@@ -115,15 +120,22 @@ This processes papers, creates embeddings, and builds the FAISS index.
 ### 3. Start the API
 
 ```bash
+# Using the new backend structure (recommended)
+python backend/main.py
+
+# Or using the legacy API
 python src/api.py
 ```
 
 The API will be available at `http://localhost:8000`
 
+- API Documentation: `http://localhost:8000/docs`
+- Health Check: `http://localhost:8000/api/v1/health`
+
 ### 4. Query the System
 
 ```bash
-curl -X POST "http://localhost:8000/ask" \
+curl -X POST "http://localhost:8000/api/v1/ask" \
      -H "Content-Type: application/json" \
      -d '{"question": "What are the latest advances in transformer architectures?"}'
 ```
@@ -132,37 +144,38 @@ curl -X POST "http://localhost:8000/ask" \
 
 ### Core Endpoints
 
-- **`POST /ask`** - Ask a question to the RAG system
-- **`GET /health`** - Health check and system status
-- **`GET /metrics`** - Performance metrics and statistics
-- **`POST /refresh`** - Trigger index refresh
-- **`GET /stats`** - Detailed system statistics
+- **`POST /api/v1/ask`** - Ask a question to the RAG system
+- **`GET /api/v1/health`** - Health check and system status
+- **`GET /api/v1/metrics`** - Performance metrics and statistics
+- **`POST /api/v1/refresh`** - Trigger index refresh
+
+**Note:** The API uses versioned endpoints under `/api/v1/`. For interactive API documentation, visit `http://localhost:8000/docs`.
 
 ### Example Usage
 
 #### Ask a Question
 
 ```bash
-curl -X POST "http://localhost:8000/ask" \
+curl -X POST "http://localhost:8000/api/v1/ask" \
      -H "Content-Type: application/json" \
      -d '{
        "question": "How do attention mechanisms work in transformers?",
        "k": 5,
-       "max_context_length": 1000,
-       "max_answer_length": 200
+       "max_context_length": 5000,
+       "max_answer_length": 300
      }'
 ```
 
 #### Check System Health
 
 ```bash
-curl http://localhost:8000/health
+curl http://localhost:8000/api/v1/health
 ```
 
 #### Get Performance Metrics
 
 ```bash
-curl http://localhost:8000/metrics
+curl http://localhost:8000/api/v1/metrics
 ```
 
 ## 🔧 Configuration
@@ -182,6 +195,10 @@ The system uses these free, open-source models:
 Fast and lightweight - returns formatted context from retrieved papers.
 
 ```bash
+# Using new backend structure (recommended)
+python backend/main.py
+
+# Or using legacy API
 python src/api.py
 ```
 
@@ -193,10 +210,13 @@ AI-powered answer synthesis using local models.
 # Install LLM dependencies first
 pip install llama-cpp-python huggingface-hub
 
-# Enable LLM generation
-USE_LLM=true python src/api.py
+# Enable LLM generation (new backend)
+USE_LLM=true python backend/main.py
 
 # Use specific model
+USE_LLM=true LLM_MODEL="TinyLlama/TinyLlama-1.1B-Chat-v1.0" python backend/main.py
+
+# Or using legacy API
 USE_LLM=true LLM_MODEL="TinyLlama/TinyLlama-1.1B-Chat-v1.0" python src/api.py
 ```
 
@@ -267,49 +287,70 @@ python scripts/refresh_index.py
 
 ```
 QueryGenie/
-├── src/
+├── backend/                    # FastAPI backend application
+│   ├── api/
+│   │   └── v1/
+│   │       └── routes.py      # API v1 endpoints
+│   └── main.py                # Backend entry point
+├── frontend/                   # React + TypeScript frontend
+│   ├── src/
+│   │   ├── components/        # React components
+│   │   ├── services/          # API services
+│   │   └── App.tsx            # Main app component
+│   └── Dockerfile             # Frontend container
+├── src/                        # Core RAG logic (shared)
 │   ├── __init__.py
-│   ├── api.py                 # FastAPI service
+│   ├── api.py                 # Legacy API (deprecated)
 │   ├── arxiv_downloader.py    # Paper downloader
 │   ├── preprocessing.py       # Document processing
 │   ├── faiss_manager.py       # FAISS index management
 │   ├── rag_pipeline.py        # RAG pipeline
-│   └── evaluation.py          # Evaluation scripts
+│   └── llm_generator.py       # LLM generation
 ├── scripts/
 │   ├── refresh_index.py       # Index refresh script
 │   └── setup_cron.sh          # Cron job setup
-├── data/                       # Data directory
-├── logs/                       # Log files
+├── data/                       # Data directory (FAISS index, papers)
+├── models/                     # LLM model files (if using LLM)
 ├── requirements.txt            # Python dependencies
-├── Dockerfile                  # Docker configuration
-├── docker-compose.yml          # Docker Compose setup
+├── Dockerfile.backend         # Backend Docker configuration
+├── docker-compose.prod.yml    # Production Docker Compose setup
 ├── test_queries.json          # Test queries
 └── README.md                  # This file
 ```
 
 ## 🐳 Docker Deployment
 
-### Build and Run
+### Production Deployment (Recommended)
 
 ```bash
-# Build the image
-docker build -t querygenie .
-
-# Run the container
-docker run -p 8000:8000 -v $(pwd)/data:/app/data querygenie
-```
-
-### Docker Compose
-
-```bash
-# Start all services
-docker-compose up -d
+# Start all services (backend + frontend)
+docker-compose -f docker-compose.prod.yml up -d
 
 # View logs
-docker-compose logs -f
+docker-compose -f docker-compose.prod.yml logs -f
 
 # Stop services
-docker-compose down
+docker-compose -f docker-compose.prod.yml down
+```
+
+The services will be available at:
+
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:8000
+- API Docs: http://localhost:8000/docs
+
+### Manual Docker Build
+
+```bash
+# Build backend image
+docker build -f Dockerfile.backend -t querygenie-backend .
+
+# Run backend container
+docker run -p 8000:8000 \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/models:/app/models \
+  -e USE_LLM=true \
+  querygenie-backend
 ```
 
 ## 🔍 Troubleshooting
@@ -378,7 +419,7 @@ For issues and questions:
 1. Check the troubleshooting section
 2. Review the logs in `logs/` directory
 3. Open an issue on GitHub
-4. Check the API documentation at `http://localhost:8000/docs`
+4. Check the API documentation at `http://localhost:8000/docs` (interactive Swagger UI)
 
 ---
 

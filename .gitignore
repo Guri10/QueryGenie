@@ -29,12 +29,15 @@ env.bak/
 venv.bak/
 
 # Data files (keep structure but not actual data)
-data/*.json
-data/*.faiss
+# Exclude paper JSON files but allow FAISS index files (needed for free tier deployment)
+data/arxiv_papers_*.json
 data/*.pkl
 data/*.npy
 data/*.csv
 data/*.txt
+# Allow FAISS index files for Docker image (free tier - no persistent disks)
+!data/faiss_index.faiss
+!data/faiss_index_chunks.json
 !data/.gitkeep
 
 # Model files

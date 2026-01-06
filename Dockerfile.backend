@@ -27,6 +27,11 @@ COPY backend/ ./backend/
 # Create data and models directories
 RUN mkdir -p data models
 
+# Copy FAISS index files (for free tier - no persistent disks)
+# These files are small enough (~60MB total) to include in image
+COPY data/faiss_index.faiss ./data/faiss_index.faiss
+COPY data/faiss_index_chunks.json ./data/faiss_index_chunks.json
+
 # Set environment variables
 ENV PYTHONPATH=/app/src
 ENV USE_LLM=true

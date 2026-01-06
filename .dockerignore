@@ -27,11 +27,14 @@ build/
 .DS_Store
 Thumbs.db
 
-# Data and models (should be mounted as volumes)
-data/*.json
-data/*.faiss
+# Data and models
+# Note: For free tier (no persistent disks), we include FAISS index in image
+# Exclude paper JSON files (too large), but allow index files to be copied
+data/arxiv_papers_*.json
 data/*.pkl
-models/
+# FAISS index files are included in Dockerfile for free tier deployment
+# data/*.faiss and data/*_chunks.json are NOT ignored (needed in image)
+models/  # Models will be downloaded on first run if USE_LLM=true
 
 # Logs
 *.log

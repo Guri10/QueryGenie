@@ -13,7 +13,13 @@ RUN apt-get update && apt-get install -y \
 # Copy requirements first for better caching
 COPY requirements.txt .
 
-# Install Python dependencies with cleanup
+# Install CPU-only PyTorch first to avoid CUDA dependencies (prevents 706MB nvidia_cudnn download)
+# This significantly speeds up builds on free tier
+RUN pip install --no-cache-dir \
+    torch==2.1.0 torchvision==0.16.0 torchaudio==2.1.0 \
+    --index-url https://download.pytorch.org/whl/cpu
+
+# Install remaining Python dependencies with cleanup
 RUN pip install --no-cache-dir -r requirements.txt && \
     pip cache purge && \
     rm -rf /tmp/* /var/tmp/* /root/.cache/pip && \

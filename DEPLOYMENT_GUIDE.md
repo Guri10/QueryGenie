@@ -139,6 +139,71 @@ docker-compose -f docker-compose.prod.yml logs -f
      --ports 80
    ```
 
+### Render
+
+Render provides a simple way to deploy both frontend and backend services with persistent storage, perfect for portfolio projects.
+
+**Prerequisites:**
+- Render account (free tier available)
+- GitHub repository connected to Render
+- FAISS index built locally (recommended) or ready to build on first deploy
+
+**Quick Start:**
+
+1. **Create Backend Service:**
+   - New → Web Service
+   - Connect your GitHub repository
+   - Settings:
+     - Name: `querygenie-backend`
+     - Environment: `Docker`
+     - Dockerfile Path: `Dockerfile.backend`
+     - Docker Context: `.`
+     - Health Check Path: `/api/v1/health`
+     - Plan: `Free`
+
+2. **Create Frontend Service:**
+   - New → Static Site
+   - Connect your GitHub repository
+   - Settings:
+     - Name: `querygenie-frontend`
+     - Build Command: `cd frontend && npm install && npm run build`
+     - Publish Directory: `frontend/dist`
+     - Plan: `Free`
+
+3. **Configure Environment Variables:**
+
+   **Backend:**
+   ```
+   USE_LLM=true
+   HOST=0.0.0.0
+   PORT=8000
+   RELOAD=false
+   ALLOWED_HOSTS=querygenie-backend.onrender.com
+   CORS_ORIGINS=https://querygenie-frontend.onrender.com
+   ```
+
+   **Frontend:**
+   ```
+   VITE_API_URL=https://querygenie-backend.onrender.com/api
+   ```
+
+4. **Set Up Persistent Storage:**
+   - Add Render Disk to backend service
+   - Mount path: `/app/data` for FAISS index (1GB)
+   - Mount path: `/app/models` for LLM models (1GB, if using LLM)
+
+**Important Notes:**
+- Render free tier has limitations (spins down after 15 min inactivity, 512MB RAM)
+- For free tier, consider `USE_LLM=false` to save memory
+- First deploy may take longer if models need to be downloaded
+- See [RENDER_DEPLOYMENT.md](RENDER_DEPLOYMENT.md) for detailed step-by-step instructions
+- See [RENDER_ENV_VARS.md](RENDER_ENV_VARS.md) for complete environment variable reference
+
+**Pre-Deployment Check:**
+```bash
+./scripts/prepare_render_deploy.sh
+```
+
 ## 🐳 Docker Deployment
 
 ### Single Container (All-in-One)

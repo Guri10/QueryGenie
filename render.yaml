@@ -1,0 +1,54 @@
+# Render Blueprint for QueryGenie
+# Infrastructure-as-code configuration for Render deployment
+# 
+# Note: Render.yaml has some limitations. Manual setup via Render dashboard
+# may be more flexible. See RENDER_DEPLOYMENT.md for manual setup instructions.
+
+services:
+  # Backend Service (FastAPI)
+  - type: web
+    name: querygenie-backend
+    env: docker
+    dockerfilePath: ./Dockerfile.backend
+    dockerContext: .
+    plan: free
+    region: oregon  # or: frankfurt, singapore
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: USE_LLM
+        value: "true"
+      - key: HOST
+        value: "0.0.0.0"
+      - key: PORT
+        fromService:
+          type: web
+          name: querygenie-backend
+          property: port
+      - key: RELOAD
+        value: "false"
+      - key: CORS_ORIGINS
+        sync: false  # Set manually after frontend deploys
+        value: ""  # Will be updated with frontend URL
+      - key: ALLOWED_HOSTS
+        sync: false  # Set manually
+        value: "querygenie-backend.onrender.com"
+    # Persistent disks for data and models
+    disks:
+      - name: querygenie-data
+        mountPath: /app/data
+        sizeGB: 1
+      - name: querygenie-models
+        mountPath: /app/models
+        sizeGB: 1
+
+  # Frontend Service (React Static Site)
+  - type: web
+    name: querygenie-frontend
+    env: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: ./frontend/dist
+    envVars:
+      - key: VITE_API_URL
+        sync: false  # Set manually after backend deploys
+        value: ""  # Will be updated with backend URL (e.g., https://querygenie-backend.onrender.com/api)
+

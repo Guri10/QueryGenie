@@ -5,7 +5,6 @@ Production-ready FastAPI application with proper structure
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 import os
 import sys
@@ -73,21 +72,6 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
-)
-
-# Trusted host middleware for production
-# Get allowed hosts from environment or use defaults
-allowed_hosts_env = os.getenv("ALLOWED_HOSTS", "")
-if allowed_hosts_env:
-    # Split comma-separated hosts from environment variable
-    allowed_hosts = [host.strip() for host in allowed_hosts_env.split(",") if host.strip()]
-else:
-    # Default hosts for local development
-    allowed_hosts = ["localhost", "127.0.0.1"]
-
-app.add_middleware(
-    TrustedHostMiddleware,
-    allowed_hosts=allowed_hosts
 )
 
 # Include API routes

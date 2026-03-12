@@ -1,6 +1,6 @@
 """
 LLM Generator for QueryGenie RAG System
-Uses llama-cpp-python for efficient local inference on M2 MacBook
+Supports local inference (llama-cpp-python) and OpenAI API.
 """
 
 import os
@@ -16,7 +16,15 @@ try:
 except ImportError:
     LLAMA_CPP_AVAILABLE = False
     LLM_AVAILABLE = False
-    print("Warning: llama-cpp-python not installed. LLM generation will be disabled.")
+    print("Warning: llama-cpp-python not installed. Local LLM generation will be disabled.")
+
+try:
+    from openai import OpenAI
+    OPENAI_AVAILABLE = True
+    LLM_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+    print("Warning: openai package not installed. OpenAI generation will be disabled.")
 
 
 @dataclass
@@ -382,6 +390,82 @@ ANSWER (synthesizing information from the research papers above; no citations or
     def is_ready(self) -> bool:
         """Check if generator is ready"""
         return self.model is not None
+
+
+class OpenAIGenerator:
+    """
+    LLM Generator backed by the OpenAI API.
+    Exposes the same interface as LLMGenerator so the rest of the
+    codebase can use it as a drop-in replacement.
+    """
+
+    def __init__(
+        self,
+        model_name: str = "gpt-4o-mini",
+        api_key: Optional[str] = None,
+    ):
+        if not OPENAI_AVAILABLE:
+            raise ImportError(
+                "openai package is not installed. "
+                "Install it with: pip install openai"
+            )
+
+        self.model_name = model_name
+        self._client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
+
+    def generate_rag_answer(
+        self,
+        question: str,
+        context: str,
+        max_answer_length: int = 200,
+    ) -> Dict[str, Any]:
+        """
+        Generate an answer from the question and retrieved context using
+        the OpenAI Chat Completions API.
+        """
+        system_prompt = (
+            "You are a research assistant that answers questions by synthesizing "
+            "information from the provided research paper abstracts. "
+            "Base your answer strictly on the papers given. "
+            "Do NOT include references, citations, or a REFERENCES section — "
+            "the UI displays sources separately. "
+            "If the papers don't contain relevant information, say so."
+        )
+
+        user_prompt = (
+            f"RESEARCH PAPERS:\n{context}\n\n"
+            f"QUESTION: {question}\n\n"
+            "ANSWER (synthesize information from the research papers above; "
+            "no citations or reference list in the text):"
+        )
+
+        start_time = time.time()
+        response = self._client.chat.completions.create(
+            model=self.model_name,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            max_tokens=max_answer_length,
+            temperature=0.3,
+        )
+        generation_time = time.time() - start_time
+
+        answer = response.choices[0].message.content.strip()
+
+        return {
+            "text": answer,
+            "generation_time": generation_time,
+            "tokens_generated": response.usage.completion_tokens,
+            "tokens_per_second": (
+                response.usage.completion_tokens / generation_time
+                if generation_time > 0 else 0
+            ),
+            "model": self.model_name,
+        }
+
+    def is_ready(self) -> bool:
+        return True
 
 
 def main():

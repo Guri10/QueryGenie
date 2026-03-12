@@ -38,12 +38,14 @@ def initialize_pipeline():
             raise RuntimeError("FAISS index not found. Please run preprocessing first.")
         
         use_llm = os.getenv("USE_LLM", "false").lower() == "true"
+        llm_provider = os.getenv("LLM_PROVIDER", "local").lower()
         model_name = os.getenv("LLM_MODEL", "TinyLlama/TinyLlama-1.1B-Chat-v1.0")
-        
+
         rag_pipeline = RAGPipeline(
             faiss_manager,
             use_llm=use_llm,
-            model_name=model_name
+            model_name=model_name,
+            llm_provider=llm_provider,
         )
         
         print("RAG Pipeline initialized successfully!")

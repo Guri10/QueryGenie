@@ -13,6 +13,14 @@ import logging
 import time
 from contextlib import asynccontextmanager
 
+# Load .env file if present (local development)
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
+except ImportError:
+    print("Warning: python-dotenv not installed. .env file will not be loaded. "
+          "Install with: pip install python-dotenv")
+
 # Add src directory to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 

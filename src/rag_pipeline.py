@@ -8,7 +8,7 @@ import time
 from dataclasses import dataclass
 
 try:
-    from llm_generator import LLMGenerator, GenerationConfig
+    from llm_generator import LLMGenerator, OpenAIGenerator, GenerationConfig
     LLM_AVAILABLE = True
 except ImportError:
     LLM_AVAILABLE = False
@@ -35,16 +35,18 @@ class RAGPipeline:
         faiss_manager, 
         use_llm: bool = False,
         model_name: str = "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-        model_path: Optional[str] = None
+        model_path: Optional[str] = None,
+        llm_provider: str = "local",
     ):
         """
         Initialize RAG pipeline
-        
+
         Args:
             faiss_manager: FAISSManager instance
             use_llm: Whether to use LLM for text generation
-            model_name: Name of the LLM model to use
-            model_path: Path to local GGUF model file
+            model_name: LLM model name (local GGUF name or OpenAI model id)
+            model_path: Path to local GGUF model file (local provider only)
+            llm_provider: "local" for llama-cpp-python, "openai" for OpenAI API
         """
         self.faiss_manager = faiss_manager
         self.use_llm = use_llm
@@ -53,20 +55,30 @@ class RAGPipeline:
         if use_llm:
             if not LLM_AVAILABLE:
                 print("⚠️ Warning: LLM dependencies not available. Falling back to retrieval-only mode.")
-                print("   Install with: pip install llama-cpp-python huggingface-hub")
                 self.use_llm = False
+            elif llm_provider == "openai":
+                try:
+                    openai_model = model_name if "/" not in model_name else "gpt-4o-mini"
+                    print(f"Initializing OpenAI generator with model: {openai_model}...")
+                    self.generator = OpenAIGenerator(model_name=openai_model)
+                    print("✅ RAG pipeline running with OpenAI generation")
+                except Exception as e:
+                    print(f"⚠️ Warning: Failed to initialize OpenAI generator: {e}")
+                    print("   Falling back to retrieval-only mode")
+                    self.use_llm = False
+                    self.generator = None
             else:
                 try:
-                    print(f"Initializing LLM generator with {model_name}...")
+                    print(f"Initializing local LLM generator with {model_name}...")
                     self.generator = LLMGenerator(
                         model_path=model_path,
                         model_name=model_name,
                         n_threads=4,
                         verbose=False
                     )
-                    print("✅ RAG pipeline running with LLM generation")
+                    print("✅ RAG pipeline running with local LLM generation")
                 except Exception as e:
-                    print(f"⚠️ Warning: Failed to load LLM: {e}")
+                    print(f"⚠️ Warning: Failed to load local LLM: {e}")
                     print("   Falling back to retrieval-only mode")
                     self.use_llm = False
                     self.generator = None

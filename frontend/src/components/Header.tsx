@@ -30,7 +30,7 @@ export const Header: React.FC<HeaderProps> = ({ onClearChat }) => {
             </button>
             
             <a
-              href="https://github.com/your-username/querygenie"
+              href="https://github.com/Guri10/QueryGenie"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
